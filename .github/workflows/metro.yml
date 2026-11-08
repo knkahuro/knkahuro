@@ -1,12 +1,9 @@
-# .github/workflows/metro.yml
 name: Metro
 
 on:
-  schedule:
-    - cron: '0 6 * * *'          # runs daily at 6am UTC
   push:
-    paths:
-      - metro.svg                # re-runs if you manually edit metro.svg
+    branches: [main]     # ← runs on EVERY push, not just metro.svg
+  workflow_dispatch:      # ← adds the "Run workflow" button to Actions tab
 
 permissions:
   contents: write
