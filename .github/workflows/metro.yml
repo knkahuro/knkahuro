@@ -1,0 +1,32 @@
+# .github/workflows/metro.yml
+name: Metro
+
+on:
+  schedule:
+    - cron: '0 6 * * *'          # runs daily at 6am UTC
+  push:
+    paths:
+      - metro.svg                # re-runs if you manually edit metro.svg
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate metro.svg
+        run: node commit-metro.mjs ${{ github.repository_owner }} ${{ secrets.GH_TOKEN }} > metro.svg
+
+      - name: Commit if changed
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add metro.svg
+          git diff --cached --quiet || git commit -m "chore: refresh commit metro"
+          git push
