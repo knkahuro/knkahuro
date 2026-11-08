@@ -13,21 +13,47 @@ const token = process.argv[3];
 const H = { Accept: 'application/vnd.github+json' };
 if (token) H.Authorization = 'Bearer ' + token;
 
-const j = async u => (await fetch(u, { headers: H })).json();
+const j = async u => {
+  const res = await fetch(u, { headers: H });
+  if (!res.ok) {
+    console.error(`API error ${res.status} for ${u}`);
+    process.exit(1);
+  }
+  return res.json();
+};
 
 // fetch profile
 const me = await j(`https://api.github.com/users/${user}`);
 
-// fetch your public repos (sorted by most recently pushed)
-const repos = (await j(`https://api.github.com/users/${user}/repos?sort=pushed&per_page=100`))
-  .filter(r => !r.fork)
+// fetch repos — handle error / empty response
+let reposRaw;
+try {
+  reposRaw = await j(`https://api.github.com/users/${user}/repos?sort=pushed&per_page=100`);
+} catch (err) {
+  console.error('Failed to fetch repos:', err.message);
+  process.exit(1);
+}
+
+// ensure we got an array
+const repos = (Array.isArray(reposRaw) ? reposRaw : [])
+  .filter(r => r && !r.fork)
   .slice(0, 5);
 
-// aggregate language bytes across those repos
+if (repos.length === 0) {
+  console.error('No non-fork public repositories found for user', user);
+  console.error('Add at least one public non-fork repo, or disable "fork" filtering by removing the .filter() call.');
+  process.exit(1);
+}
+
+// aggregate language bytes
 const agg = {};
 for (const r of repos) {
-  Object.entries(await j(r.languages_url))
-    .forEach(([n, s]) => { agg[n] = (agg[n] || 0) + s; });
+  try {
+    Object.entries(await j(r.languages_url))
+      .forEach(([n, s]) => { agg[n] = (agg[n] || 0) + s; });
+  } catch (err) {
+    console.warn(`Skipping languages for ${r.name}:`, err.message);
+  }
 }
 
 const langs = Object.entries(agg)
@@ -38,6 +64,11 @@ const langs = Object.entries(agg)
     size,
     color: LANG_COLORS[name.toLowerCase()] || '#8b949e'
   }));
+
+if (langs.length === 0) {
+  console.error('No language data found. Are the repos empty?');
+  process.exit(1);
+}
 
 process.stdout.write(metro({ user: me.login, bio: me.bio, langs, repos: repos.map(r => r.name) }));
 
