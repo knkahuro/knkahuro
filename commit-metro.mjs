@@ -90,7 +90,7 @@ const lines = repos.map(r => {
     return { name: r.name, langs: [{ name: langs[0].name, size: 1, color: langs[0].color }], dominant: langs[0] };
   }
   return { name: r.name, langs: entries, dominant: entries[0] };
-}).filter(l => l.dominant);
+});
 
 process.stdout.write(metro({ user: me.login, bio: me.bio, lines }));
 
@@ -98,6 +98,7 @@ function metro({ user, bio, lines }) {
   const W = 900, Ht = 460;
   const x0 = 100, x1 = 860;
   const lineTop = 130, lineGap = 52;
+  const chipX = 14, chipW = 110, chipH = 22;
   const e = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // deterministic RNG so the same run produces the same map
   let seed = lines.reduce((a, l) => a + l.name.charCodeAt(0), 0);
@@ -113,20 +114,18 @@ function metro({ user, bio, lines }) {
     const stations = line.langs;
     const n = stations.length;
     const lineColor = line.dominant.color;
+    const lineStart = chipX + chipW + 8;
 
     // project line — fixed width, colored by its dominant language
-    s += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="${lineColor}" stroke-width="5" stroke-linecap="round" opacity="0.9"/>`;
+    s += `<line x1="${lineStart}" y1="${y}" x2="${x1}" y2="${y}" stroke="${lineColor}" stroke-width="5" stroke-linecap="round" opacity="0.9"/>`;
 
     // project name as a chip (badge) at the left of the line
-    const tw = e(line.name).length * 6.5 + 16;
-    const th = 20;
-    const chipY = y - th / 2;
-    s += `<rect x="${x0 - 12 - tw}" y="${chipY}" width="${tw}" height="${th}" rx="10" fill="#0d1117" stroke="${lineColor}" stroke-width="1.5"/>`;
-    s += `<text x="${x0 - 12 - tw / 2}" y="${y + 4}" fill="${lineColor}" font-size="11" font-weight="700" text-anchor="middle">${e(line.name)}</text>`;
+    s += `<rect x="${chipX}" y="${y - chipH / 2}" width="${chipW}" height="${chipH}" rx="11" fill="#0d1117" stroke="${lineColor}" stroke-width="1.5"/>`;
+    s += `<text x="${chipX + chipW / 2}" y="${y}" fill="${lineColor}" font-size="10" font-weight="700" text-anchor="middle" dominant-baseline="central">${e(line.name)}</text>`;
 
     // stations — blank circles with the line's color as border
     stations.forEach((st, j) => {
-      const bx = n === 1 ? (x0 + x1) / 2 : x0 + (x1 - x0) * (j + 1) / (n + 1);
+      const bx = n === 1 ? (lineStart + x1) / 2 : lineStart + (x1 - lineStart) * (j + 1) / (n + 1);
       s += `<circle cx="${bx.toFixed(1)}" cy="${y}" r="6" fill="#0d1117" stroke="${lineColor}" stroke-width="2.5"/>`;
       // language name below the station tick
       s += `<text x="${bx.toFixed(1)}" y="${y + 22}" fill="${st.color}" font-size="10" text-anchor="middle">${e(st.name)}</text>`;
@@ -136,7 +135,7 @@ function metro({ user, bio, lines }) {
     const dur = (4 + rnd() * 6).toFixed(1);
     const delay = (rnd() * 8).toFixed(1);
     const reverse = rnd() > 0.5;
-    const path = reverse ? `M ${x1} ${y} L ${x0} ${y}` : `M ${x0} ${y} L ${x1} ${y}`;
+    const path = reverse ? `M ${x1} ${y} L ${lineStart} ${y}` : `M ${lineStart} ${y} L ${x1} ${y}`;
     s += `<g><animateMotion dur="${dur}s" begin="${delay}s" repeatCount="indefinite" path="${path}"/>`
      + `<rect x="-16" y="-5" width="14" height="10" rx="2" fill="#e6edf3"/><rect x="1" y="-5" width="14" height="10" rx="2" fill="#c9d1d9"/>`
      + `<circle cx="17" cy="0" r="2.5" fill="#fff8c5"/></g>`;
