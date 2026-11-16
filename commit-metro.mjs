@@ -2,15 +2,21 @@
 // Run: node commit-metro.mjs <username> > metro.svg
 // No GitHub token needed — uses unauthenticated API (60 req/hour).
 
-// Canonical metro palette — Red, Orange, Yellow, Green, Blue, Purple
-// (sourced from London Underground, NYC MTA, Paris Métro, Boston MBTA, Tokyo Metro)
-const METRO_PALETTE = ['#E8112D', '#FF6319', '#FFD100', '#00933C', '#0062CF', '#9A38A1'];
-const FALLBACK_COLORS = {
-  javascript:'#f1e05a', typescript:'#3178c6', python:'#3572A5', go:'#00ADD8',
-  rust:'#dea584', java:'#b07219', 'c++':'#f34b7d', c:'#555555', 'c#':'#178600',
-  ruby:'#701516', php:'#4F5D95', shell:'#89e051', html:'#e34c26', css:'#563d7c',
-  kotlin:'#A97BFF', swift:'#F05138', dart:'#00B4AB', zig:'#ec915c'
-};
+// TfL London Underground palette
+const METRO_PALETTE = [
+  '#A45A2A', // Bakerloo
+  '#DA291C', // Central
+  '#FFCD00', // Circle
+  '#007A33', // District
+  '#E89CAE', // Hammersmith & City
+  '#7C878E', // Jubilee
+  '#840B55', // Metropolitan
+  '#000000', // Northern
+  '#10069F', // Piccadilly
+  '#0098D4', // Victoria
+  '#000099', // TFL Blue
+  '#CC3333'  // TFL Red
+];
 
 const user = process.argv[2];
 const H = { Accept: 'application/vnd.github+json' };
@@ -68,7 +74,7 @@ const langs = Object.entries(agg)
   .map(([name, size], i) => ({
     name,
     size,
-    color: METRO_PALETTE[i] || FALLBACK_COLORS[name.toLowerCase()] || '#8b949e'
+    color: METRO_PALETTE[i] || METRO_PALETTE[0]
   }));
 
 if (langs.length === 0) {
@@ -100,9 +106,6 @@ function metro({ user, bio, lines }) {
   const lineTop = 130, lineGap = 52;
   const chipX = 14, chipW = 110, chipH = 22;
   const e = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // deterministic RNG so the same run produces the same map
-  let seed = lines.reduce((a, l) => a + l.name.charCodeAt(0), 0);
-  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
 
   let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${Ht}" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" font-family="ui-monospace,Menlo,monospace">`;
   s += `<rect width="${W}" height="${Ht}" fill="#0d1117"/>`;
@@ -120,8 +123,8 @@ function metro({ user, bio, lines }) {
     s += `<line x1="${lineStart}" y1="${y}" x2="${x1}" y2="${y}" stroke="${lineColor}" stroke-width="5" stroke-linecap="round" opacity="0.9"/>`;
 
     // project name as a chip (badge) at the left of the line
-    s += `<rect x="${chipX}" y="${y - chipH / 2}" width="${chipW}" height="${chipH}" rx="11" fill="#0d1117" stroke="${lineColor}" stroke-width="1.5"/>`;
-    s += `<text x="${chipX + chipW / 2}" y="${y}" fill="${lineColor}" font-size="10" font-weight="700" text-anchor="middle" dominant-baseline="central">${e(line.name)}</text>`;
+    s += `<rect x="${chipX}" y="${y - chipH / 2}" width="${chipW}" height="${chipH}" rx="11" fill="${lineColor}"/>`;
+    s += `<text x="${chipX + chipW / 2}" y="${y}" fill="#0d1117" font-size="10" font-weight="700" text-anchor="middle" dominant-baseline="central">${e(line.name)}</text>`;
 
     // stations — blank circles with the line's color as border
     stations.forEach((st, j) => {
@@ -130,15 +133,6 @@ function metro({ user, bio, lines }) {
       // language name below the station tick
       s += `<text x="${bx.toFixed(1)}" y="${y + 22}" fill="${st.color}" font-size="10" text-anchor="middle">${e(st.name)}</text>`;
     });
-
-    // train — randomized duration, delay, and direction
-    const dur = (4 + rnd() * 6).toFixed(1);
-    const delay = (rnd() * 8).toFixed(1);
-    const reverse = rnd() > 0.5;
-    const path = reverse ? `M ${x1} ${y} L ${lineStart} ${y}` : `M ${lineStart} ${y} L ${x1} ${y}`;
-    s += `<g><animateMotion dur="${dur}s" begin="${delay}s" repeatCount="indefinite" path="${path}"/>`
-     + `<rect x="-16" y="-5" width="14" height="10" rx="2" fill="#e6edf3"/><rect x="1" y="-5" width="14" height="10" rx="2" fill="#c9d1d9"/>`
-     + `<circle cx="17" cy="0" r="2.5" fill="#fff8c5"/></g>`;
   });
 
   return s + '</svg>';
