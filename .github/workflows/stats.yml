@@ -1,8 +1,8 @@
-name: Metro
+name: Stats
 
 on:
   push:
-    branches: [main]     # ← runs on EVERY push, not just metro.svg
+    branches: [main]     # ← runs on EVERY push, not just stats.svg
   workflow_dispatch:      # ← adds the "Run workflow" button to Actions tab
 
 permissions:
@@ -17,13 +17,13 @@ jobs:
         with:
           node-version: 20
 
-      - name: Generate metro.svg
-        run: node commit-metro.mjs ${{ github.repository_owner }} > metro.svg
+      - name: Generate stats.svg
+        run: node stats.mjs ${{ github.repository_owner }} > stats.svg
 
       - name: Commit if changed
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add metro.svg
-          git diff --cached --quiet || git commit -m "chore: refresh commit metro"
+          git add stats.svg
+          git diff --cached --quiet || git commit -m "chore: refresh commit stats"
           git push
