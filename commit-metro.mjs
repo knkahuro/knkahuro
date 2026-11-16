@@ -76,77 +76,70 @@ if (langs.length === 0) {
   process.exit(1);
 }
 
-// each repo connects to every language line it uses (interchange stations)
-const langNames = new Set(langs.map(l => l.name));
-const linesOf = r => {
-  const rl = repoLangs[r] || {};
-  const hit = Object.entries(rl).filter(([n]) => langNames.has(n)).map(([n]) => langs.find(l => l.name === n));
-  return hit.length ? hit : [langs[0]];
-};
+// each project is a line; each language it uses is a station on that line
+const langColor = {};
+langs.forEach(l => { langColor[l.name] = l.color; });
 
-process.stdout.write(metro({ user: me.login, bio: me.bio, langs, repos: repos.map(r => r.name), linesOf }));
+const lines = repos.map(r => {
+  const rl = repoLangs[r.name] || {};
+  const entries = Object.entries(rl)
+    .filter(([n]) => langColor[n])
+    .map(([n, s]) => ({ name: n, size: s, color: langColor[n] }))
+    .sort((a, b) => b.size - a.size);
+  if (entries.length === 0) {
+    return { name: r.name, langs: [{ name: langs[0].name, size: 1, color: langs[0].color }], dominant: langs[0] };
+  }
+  return { name: r.name, langs: entries, dominant: entries[0] };
+}).filter(l => l.dominant);
 
-function metro({ user, bio, langs, repos, linesOf }) {
+process.stdout.write(metro({ user: me.login, bio: me.bio, lines }));
+
+function metro({ user, bio, lines }) {
   const W = 900, Ht = 460;
   const x0 = 100, x1 = 860;
-  const lineTop = 130, lineGap = 48;
+  const lineTop = 130, lineGap = 52;
   const e = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-  // line thickness proportional to byte share (TfL: thickness = base grid unit)
-  const totalBytes = langs.reduce((a, l) => a + l.size, 0) || 1;
-  const thickness = l => Math.max(3, Math.round(4 + 5 * l.size / totalBytes));
+  // deterministic RNG so the same run produces the same map
+  let seed = lines.reduce((a, l) => a + l.name.charCodeAt(0), 0);
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
 
   let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${Ht}" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" font-family="ui-monospace,Menlo,monospace">`;
   s += `<rect width="${W}" height="${Ht}" fill="#0d1117"/>`;
   s += `<text x="${x0}" y="40" fill="#e6edf3" font-size="20" font-weight="700">${e(user)}</text>`;
-  s += `<text x="${x0}" y="62" fill="#7d8590" font-size="12">${e((bio ? bio + ' · ' : '') + 'commit metro · every line is a language, every stop a project')}</text>`;
+  s += `<text x="${x0}" y="62" fill="#7d8590" font-size="12">${e((bio ? bio + ' · ' : '') + 'commit metro · every line is a project, every stop a language')}</text>`;
 
-  // language lines — one per language, horizontal, octilinear
-  langs.forEach((l, i) => {
+  lines.forEach((line, i) => {
     const y = lineTop + i * lineGap;
-    const t = thickness(l);
-    s += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="${l.color}" stroke-width="${t}" stroke-linecap="round"/>`;
-    s += `<text x="${x0 - 12}" y="${y + 4}" fill="${l.color}" font-size="12" font-weight="700" text-anchor="end">${e(l.name)}</text>`;
-    const pct = (100 * l.size / totalBytes).toFixed(1);
-    s += `<text x="${x1 + 12}" y="${y + 4}" fill="#8b949e" font-size="10" text-anchor="start">${pct}%</text>`;
-    // train running on the line
-    s += `<g><animateMotion dur="8s" repeatCount="indefinite" path="M ${x0} ${y} L ${x1} ${y}"/>`
-     + `<rect x="-16" y="-5" width="14" height="10" rx="2" fill="#e6edf3"/><rect x="1" y="-5" width="14" height="10" rx="2" fill="#c9d1d9"/>`
-     + `<circle cx="17" cy="0" r="2.5" fill="#fff8c5"/></g>`;
-  });
+    const stations = line.langs;
+    const n = stations.length;
+    const lineColor = line.dominant.color;
 
-  // stations — repos as interchange points where their language lines meet
-  const n = repos.length;
-  repos.forEach((r, i) => {
-    const myLines = linesOf(r);
-    const bx = n === 1 ? (x0 + x1) / 2 : x0 + (x1 - x0) * (i + 1) / (n + 1);
-    const ys = myLines.map(l => lineTop + langs.indexOf(l) * lineGap);
-    const by = ys.reduce((a, b) => a + b, 0) / ys.length;
-    const maxT = Math.max(...myLines.map(l => thickness(l)));
+    // project line — fixed width, colored by its dominant language
+    s += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="${lineColor}" stroke-width="5" stroke-linecap="round" opacity="0.9"/>`;
 
-    // spurs from station to each connecting line (in that line's color)
-    myLines.forEach(l => {
-      const ly = lineTop + langs.indexOf(l) * lineGap;
-      if (Math.abs(ly - by) > 0.5) {
-        s += `<line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${l.color}" stroke-width="1.5" opacity="0.7"/>`;
-      }
+    // project name as a chip (badge) at the left of the line
+    const tw = e(line.name).length * 6.5 + 16;
+    const th = 20;
+    const chipY = y - th / 2;
+    s += `<rect x="${x0 - 12 - tw}" y="${chipY}" width="${tw}" height="${th}" rx="10" fill="#0d1117" stroke="${lineColor}" stroke-width="1.5"/>`;
+    s += `<text x="${x0 - 12 - tw / 2}" y="${y + 4}" fill="${lineColor}" font-size="11" font-weight="700" text-anchor="middle">${e(line.name)}</text>`;
+
+    // stations — blank circles with the line's color as border
+    stations.forEach((st, j) => {
+      const bx = n === 1 ? (x0 + x1) / 2 : x0 + (x1 - x0) * (j + 1) / (n + 1);
+      s += `<circle cx="${bx.toFixed(1)}" cy="${y}" r="6" fill="#0d1117" stroke="${lineColor}" stroke-width="2.5"/>`;
+      // language name below the station tick
+      s += `<text x="${bx.toFixed(1)}" y="${y + 22}" fill="${st.color}" font-size="10" text-anchor="middle">${e(st.name)}</text>`;
     });
 
-    // station symbol — single stop vs interchange ring (TfL-style)
-    const r0 = myLines.length === 1 ? maxT * 0.85 : maxT * 1.7;
-    if (myLines.length === 1) {
-      s += `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="${r0.toFixed(1)}" fill="${myLines[0].color}"/>`;
-    } else {
-      s += `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="${r0.toFixed(1)}" fill="#0d1117" stroke="${myLines[0].color}" stroke-width="2"/>`;
-      s += `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="${(r0 * 0.5).toFixed(1)}" fill="#0d1117"/>`;
-      myLines.forEach((l, k) => {
-        const ang = (k / myLines.length) * Math.PI * 2;
-        const dx = Math.cos(ang) * r0 * 0.7, dy = Math.sin(ang) * r0 * 0.7;
-        s += `<circle cx="${(bx + dx).toFixed(1)}" cy="${(by + dy).toFixed(1)}" r="2" fill="${l.color}"/>`;
-      });
-    }
-    // station name above (cap height ~3× tick, per TfL standard)
-    s += `<text x="${bx.toFixed(1)}" y="${(by - r0 - 6).toFixed(1)}" fill="#e6edf3" font-size="11" text-anchor="middle">${e(r)}</text>`;
+    // train — randomized duration, delay, and direction
+    const dur = (4 + rnd() * 6).toFixed(1);
+    const delay = (rnd() * 8).toFixed(1);
+    const reverse = rnd() > 0.5;
+    const path = reverse ? `M ${x1} ${y} L ${x0} ${y}` : `M ${x0} ${y} L ${x1} ${y}`;
+    s += `<g><animateMotion dur="${dur}s" begin="${delay}s" repeatCount="indefinite" path="${path}"/>`
+     + `<rect x="-16" y="-5" width="14" height="10" rx="2" fill="#e6edf3"/><rect x="1" y="-5" width="14" height="10" rx="2" fill="#c9d1d9"/>`
+     + `<circle cx="17" cy="0" r="2.5" fill="#fff8c5"/></g>`;
   });
 
   return s + '</svg>';
