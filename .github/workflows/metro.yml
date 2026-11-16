@@ -18,7 +18,7 @@ jobs:
           node-version: 20
 
       - name: Generate metro.svg
-        run: node commit-metro.mjs ${{ github.repository_owner }} ${{ secrets.GH_TOKEN }} > metro.svg
+        run: node commit-metro.mjs ${{ github.repository_owner }} > metro.svg
 
       - name: Commit if changed
         run: |

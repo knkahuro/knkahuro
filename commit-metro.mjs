@@ -1,5 +1,6 @@
 // commit-metro.mjs
-// Run: node commit-metro.mjs <username> [token] > metro.svg
+// Run: node commit-metro.mjs <username> > metro.svg
+// No GitHub token needed — uses unauthenticated API (60 req/hour).
 
 const LANG_COLORS = {
   javascript:'#f1e05a', typescript:'#3178c6', python:'#3572A5', go:'#00ADD8',
@@ -9,9 +10,7 @@ const LANG_COLORS = {
 };
 
 const user = process.argv[2];
-const token = process.argv[3];
 const H = { Accept: 'application/vnd.github+json' };
-if (token) H.Authorization = 'Bearer ' + token;
 
 const j = async u => {
   const res = await fetch(u, { headers: H });
